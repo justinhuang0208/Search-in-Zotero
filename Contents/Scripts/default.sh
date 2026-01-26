@@ -129,18 +129,28 @@ fi
 printf '%s\n' "$results" | jq -Rn --arg base "$BASE" '
   [inputs
   | split("\t") as $c
+  | (
+      if ($c[4] | startswith("storage:")) then
+        ($base + "/" + $c[5] + "/" + ($c[4] | sub("^storage:"; "")))
+      elif ($c[4] | startswith("file:")) then
+        ($c[4] | sub("^file:(//)?"; ""))
+      else
+        $c[4]
+      end
+    ) as $pdf_path
   | {
       title: $c[0],
       subtitle: ([$c[1], $c[2], $c[3]] | map(select(length > 0)) | join(" · ")),
-      url: ("zotero://open-pdf/library/items/" + $c[5]),
-      quickLookURL: (
-        if ($c[4] | startswith("storage:")) then
-          ($base + "/" + $c[5] + "/" + ($c[4] | sub("^storage:"; "")))
-        elif ($c[4] | startswith("file:")) then
-          ($c[4] | sub("^file:(//)?"; ""))
-        else
-          $c[4]
-        end
-      )
+      children: [
+        {
+          title: "開啟 PDF（檔案）",
+          path: $pdf_path,
+          quickLookURL: $pdf_path
+        },
+        {
+          title: "透過 Zotero 開啟",
+          url: ("zotero://open-pdf/library/items/" + $c[5])
+        }
+      ]
     }
   ]'
