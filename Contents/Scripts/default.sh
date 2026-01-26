@@ -33,7 +33,8 @@ trap cleanup EXIT
 
 prepare_db() {
   local tmp
-  tmp="$(mktemp /tmp/zotero-XXXXXX.sqlite)"
+  # macOS mktemp requires the Xs at the end; use -t to avoid collisions.
+  tmp="$(mktemp -t zotero.sqlite)"
   if ! sqlite3 "$DB_SRC" ".backup '$tmp'" >/dev/null 2>&1; then
     if ! cp -f "$DB_SRC" "$tmp" >/dev/null 2>&1; then
       printf '[{"title":"Zotero database is locked","subtitle":"Close Zotero or allow db copy","badge":"Error"}]\n'
