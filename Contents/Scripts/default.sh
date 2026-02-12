@@ -6,6 +6,8 @@ export PATH="/opt/homebrew/bin:$PATH"
 BASE="/Users/justin/Zotero/storage"
 DB_SRC="/Users/justin/Zotero/zotero.sqlite"
 MAX_RESULTS=50
+MAX_CANDIDATES=1000
+ENABLE_FZF="${ENABLE_FZF:-1}"
 query="${*:-}"
 
 if [ ! -f "$DB_SRC" ]; then
@@ -21,6 +23,16 @@ fi
 if ! command -v jq >/dev/null 2>&1; then
   printf '[{"title":"jq not found","subtitle":"Install jq to format results","badge":"Error"}]\n'
   exit 0
+fi
+
+has_fzf=false
+if [ "$ENABLE_FZF" = "1" ] && command -v fzf >/dev/null 2>&1; then
+  has_fzf=true
+fi
+
+use_fzf_filter=false
+if [ -n "$query" ] && [ "$ENABLE_FZF" = "1" ] && [ "$has_fzf" = true ]; then
+  use_fzf_filter=true
 fi
 
 tmp_db=""
@@ -120,7 +132,7 @@ top_parents AS (
   FROM matched_attachments
   GROUP BY parent_item_id
   ORDER BY parent_sort_key DESC
-  LIMIT ${MAX_RESULTS}
+  LIMIT ${MAX_CANDIDATES}
 )
 SELECT
   m.parent_item_id,
@@ -143,8 +155,14 @@ SQL
 
 prepare_db
 
+sql_query="$query"
+if [ "$use_fzf_filter" = true ]; then
+  # Let fzf handle full query syntax (AND/OR/negation/fuzzy tokens).
+  sql_query=""
+fi
+
 output="$(
-  sqlite3 -separator $'\t' "$tmp_db" "$(build_query "$query")" 2>&1
+  sqlite3 -separator $'\t' "$tmp_db" "$(build_query "$sql_query")" 2>&1
 )"
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
@@ -158,6 +176,7 @@ if [ -z "$results" ]; then
   exit 0
 fi
 
+parents_json="$(
 printf '%s\n' "$results" | jq -Rn --arg base "$BASE" '
   def resolve_path($raw_path; $attachment_key):
     if ($raw_path | startswith("storage:")) then
@@ -167,6 +186,9 @@ printf '%s\n' "$results" | jq -Rn --arg base "$BASE" '
     else
       $raw_path
     end;
+
+  def sanitize:
+    gsub("[\r\n\t]+"; " ");
 
   def filename:
     (split("/") | last // "");
@@ -205,6 +227,16 @@ printf '%s\n' "$results" | jq -Rn --arg base "$BASE" '
       | $items[0] as $parent
       | {
           parentSortKey: $parent.sortKey,
+          fzfText: (
+            [
+              ($parent.parentTitle // "(no title)"),
+              ([$parent.authors, $parent.date, $parent.publication] | map(select(length > 0)) | join(" ")),
+              ($parent.parentKey // "")
+            ]
+            | map(select(length > 0))
+            | join(" ")
+            | sanitize
+          ),
           title: ($parent.parentTitle // "(no title)"),
           subtitle: ([$parent.authors, $parent.date, $parent.publication] | map(select(length > 0)) | join(" · ")),
           alwaysShowsSubtitle: true,
@@ -234,5 +266,50 @@ printf '%s\n' "$results" | jq -Rn --arg base "$BASE" '
         }
     )
   | sort_by(.parentSortKey) | reverse
-  | map(del(.parentSortKey))
   '
+)"
+
+final_json="$parents_json"
+
+if [ "$use_fzf_filter" = true ]; then
+  fzf_input="$(
+    printf '%s\n' "$parents_json" | jq -r '
+      to_entries[]
+      | "\(.key)\t\(.value.fzfText // "")"
+    '
+  )"
+
+  if [ -n "$fzf_input" ]; then
+    set +e
+    fzf_output="$(printf '%s\n' "$fzf_input" | fzf --filter "$query" --delimiter=$'\t' --nth=2.. 2>/dev/null)"
+    fzf_exit=$?
+    set -e
+
+    if [ $fzf_exit -eq 0 ]; then
+      final_json="$(
+        printf '%s\n' "$fzf_output" | jq -Rn --argjson parents "$parents_json" '
+          [inputs | select(length > 0) | split("\t")[0] | tonumber] as $idx
+          | $idx
+          | map($parents[.])
+        '
+      )"
+    elif [ $fzf_exit -eq 1 ]; then
+      final_json='[]'
+    fi
+  fi
+fi
+
+final_json="$(
+  printf '%s\n' "$final_json" | jq --argjson max "$MAX_RESULTS" '
+    (if type == "array" then . else [] end)
+    | .[:$max]
+    | map(del(.parentSortKey, .fzfText))
+  '
+)"
+
+if printf '%s\n' "$final_json" | jq -e 'length == 0' >/dev/null 2>&1; then
+  printf '[{"title":"No matches","subtitle":"%s"}]\n' "$query"
+  exit 0
+fi
+
+printf '%s\n' "$final_json"
