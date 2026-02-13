@@ -1,0 +1,23 @@
+[action]
+title = "Search in Zotero"
+
+[paths]
+semsearch_project = "/Users/justin/Script/Semantic Search"
+db_path = "/Users/justin/Script/Semantic Search/data_index/zotero_pdf_v1.db"
+faiss_path = "/Users/justin/Script/Semantic Search/data_index/zotero_pdf_v1.faiss"
+zotero_db_path = "/Users/justin/Zotero/zotero.sqlite"
+zotero_storage_dir = "/Users/justin/Zotero/storage"
+
+[embedding]
+use_local = true
+model = "qwen3-embedding:0.6b"
+
+[search]
+semantic_prefix = "`"
+top_k = 20
+semantic_max_docs = 8
+
+[fzf]
+enable = true
+max_results = 50
+max_candidates = 1000

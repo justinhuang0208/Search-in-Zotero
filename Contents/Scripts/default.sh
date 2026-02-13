@@ -3,10 +3,10 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:$PATH"
 
-BASE="/Users/justin/Zotero/storage"
-DB_SRC="/Users/justin/Zotero/zotero.sqlite"
-MAX_RESULTS=50
-MAX_CANDIDATES=1000
+BASE="${LB_ZOTERO_STORAGE_DIR:-/Users/justin/Zotero/storage}"
+DB_SRC="${LB_ZOTERO_DB_PATH:-/Users/justin/Zotero/zotero.sqlite}"
+MAX_RESULTS="${LB_FZF_MAX_RESULTS:-50}"
+MAX_CANDIDATES="${LB_FZF_MAX_CANDIDATES:-1000}"
 ENABLE_FZF="${ENABLE_FZF:-1}"
 query="${*:-}"
 
