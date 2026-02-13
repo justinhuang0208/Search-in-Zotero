@@ -3,12 +3,21 @@ set -euo pipefail
 
 export PATH="/opt/homebrew/bin:$PATH"
 
-BASE="${LB_ZOTERO_STORAGE_DIR:-/Users/justin/Zotero/storage}"
-DB_SRC="${LB_ZOTERO_DB_PATH:-/Users/justin/Zotero/zotero.sqlite}"
+BASE="${LB_ZOTERO_STORAGE_DIR:-}"
+DB_SRC="${LB_ZOTERO_DB_PATH:-}"
 MAX_RESULTS="${LB_FZF_MAX_RESULTS:-50}"
 MAX_CANDIDATES="${LB_FZF_MAX_CANDIDATES:-1000}"
 ENABLE_FZF="${ENABLE_FZF:-1}"
 query="${*:-}"
+
+if [ -z "$DB_SRC" ]; then
+  printf '[{"title":"Zotero database not configured","subtitle":"Please set paths.zotero_db_path in config.toml","badge":"Error"}]\n'
+  exit 0
+fi
+
+if [ -z "$BASE" ]; then
+  BASE="$(dirname "$DB_SRC")/storage"
+fi
 
 if [ ! -f "$DB_SRC" ]; then
   printf '[{"title":"Zotero database not found","subtitle":"%s","badge":"Error"}]\n' "$DB_SRC"

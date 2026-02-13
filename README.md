@@ -13,6 +13,7 @@
 
 ## 設定檔
 - 路徑：`Contents/config.toml`
+- 若 Zotero 不在預設位置，請先修改 `paths.zotero_db_path`
 - 主要欄位：
   - `paths.db_path` / `paths.faiss_path`：語義搜尋索引
   - `paths.zotero_db_path` / `paths.zotero_storage_dir`：Zotero 來源
